@@ -62,6 +62,8 @@ export function useGame() {
 
   const soundHandlerRef = useRef<((event: SoundEvent) => void) | null>(null)
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const towersRef = useRef<Towers>(towers)
+  towersRef.current = towers
 
   const setSoundHandler = useCallback(
     (handler: (event: SoundEvent) => void) => {
@@ -112,67 +114,64 @@ export function useGame() {
 
       clearTimerRef.current = setTimeout(() => {
         const value = forcedValue ?? rollDie()
+        const result = applyRoll(towersRef.current, value)
 
-        setTowers((prevTowers) => {
-          const result = applyRoll(prevTowers, value)
+        setTowers(result.towers)
 
-          setStats((prevStats) => ({
-            ...prevStats,
-            rolls: prevStats.rolls + 1,
-            highestTower: Math.max(
-              prevStats.highestTower,
-              highestTowerLevel(result.towers)
-            ),
-            failedGames:
-              result.outcome === "failed"
-                ? prevStats.failedGames + 1
-                : prevStats.failedGames,
-          }))
+        setStats((prevStats) => ({
+          ...prevStats,
+          rolls: prevStats.rolls + 1,
+          highestTower: Math.max(
+            prevStats.highestTower,
+            highestTowerLevel(result.towers)
+          ),
+          failedGames:
+            result.outcome === "failed"
+              ? prevStats.failedGames + 1
+              : prevStats.failedGames,
+        }))
 
-          setHistory((prev) => {
-            const record: RollRecord = {
-              id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              value,
-              outcome: result.outcome,
-              timestamp: Date.now(),
-            }
-            return [record, ...prev].slice(0, MAX_HISTORY)
-          })
-
-          if (result.outcome === "failed") {
-            setLastEvent({
-              kind: "failed",
-              value,
-              outcome: result.outcome,
-              amount: calculatePayout(activeBet, multiplier),
-            })
-            setGameState("failed")
-            setRoundActive(false)
-            playSound("failed")
-            clearTimerRef.current = setTimeout(() => {
-              setGameState("idle")
-            }, RESULT_DISPLAY_MS)
-          } else if (result.isCompleted) {
-            setLastEvent({ kind: "completed", value, outcome: result.outcome })
-            setGameState("completed")
-            playSound("tower_completed")
-          } else {
-            setLastEvent({ kind: "roll", value, outcome: result.outcome })
-            setGameState("result")
-            playSound(
-              result.outcome === "all_up"
-                ? "all_towers_up"
-                : result.outcome === "all_down"
-                  ? "tower_down"
-                  : "tower_up"
-            )
-            clearTimerRef.current = setTimeout(() => {
-              setGameState("idle")
-            }, RESULT_DISPLAY_MS)
+        setHistory((prev) => {
+          const record: RollRecord = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            value,
+            outcome: result.outcome,
+            timestamp: Date.now(),
           }
-
-          return result.towers
+          return [record, ...prev].slice(0, MAX_HISTORY)
         })
+
+        if (result.outcome === "failed") {
+          setLastEvent({
+            kind: "failed",
+            value,
+            outcome: result.outcome,
+            amount: calculatePayout(activeBet, multiplier),
+          })
+          setGameState("failed")
+          setRoundActive(false)
+          playSound("failed")
+          clearTimerRef.current = setTimeout(() => {
+            setGameState("idle")
+          }, RESULT_DISPLAY_MS)
+        } else if (result.isCompleted) {
+          setLastEvent({ kind: "completed", value, outcome: result.outcome })
+          setGameState("completed")
+          playSound("tower_completed")
+        } else {
+          setLastEvent({ kind: "roll", value, outcome: result.outcome })
+          setGameState("result")
+          playSound(
+            result.outcome === "all_up"
+              ? "all_towers_up"
+              : result.outcome === "all_down"
+                ? "tower_down"
+                : "tower_up"
+          )
+          clearTimerRef.current = setTimeout(() => {
+            setGameState("idle")
+          }, RESULT_DISPLAY_MS)
+        }
       }, ROLL_ANIMATION_MS)
     },
     [
