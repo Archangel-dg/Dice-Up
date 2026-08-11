@@ -158,6 +158,31 @@ export function useGame() {
           setLastEvent({ kind: "completed", value, outcome: result.outcome })
           setGameState("completed")
           playSound("tower_completed")
+
+          clearTimerRef.current = setTimeout(() => {
+            const payout = calculatePayout(
+              activeBet,
+              getMultiplier(result.towers)
+            )
+            setWallet((w) => w + payout)
+            setStats((prev) => ({
+              ...prev,
+              successfulCashouts: prev.successfulCashouts + 1,
+              highestMultiplier: Math.max(
+                prev.highestMultiplier,
+                getMultiplier(result.towers)
+              ),
+            }))
+            setLastEvent({ kind: "cashed_out", amount: payout })
+            setTowers(EMPTY_TOWERS)
+            setRoundActive(false)
+            setGameState("cashed_out")
+            playSound("cashout")
+
+            clearTimerRef.current = setTimeout(() => {
+              setGameState("idle")
+            }, RESULT_DISPLAY_MS)
+          }, RESULT_DISPLAY_MS)
         } else {
           setLastEvent({ kind: "roll", value, outcome: result.outcome })
           setGameState("result")
